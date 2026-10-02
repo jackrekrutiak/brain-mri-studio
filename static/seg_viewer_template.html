@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MRI Studio Tumour 3D</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#18202b; --line:#243041; --text:#e6edf5; --muted:#8b98a9;
+    --accent:#ff8a3d; --accent2:#ffb07a; --ok:#3ecf8e; --warn:#ff6b5e; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+  .app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.2px}
+  header .src{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spacer{flex:1}
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg button{all:unset;cursor:pointer;padding:5px 12px;border-radius:999px;color:var(--muted);font-size:12.5px}
+  .seg button.on{background:var(--accent);color:#1a0d03;font-weight:600}
+  main{display:grid;grid-template-columns:1fr 320px;min-height:0}
+  .stage{display:grid;grid-template-rows:auto 1fr;min-height:0;min-width:0}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .btn{all:unset;cursor:pointer;padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+    font-size:12.5px;color:var(--text)}
+  .btn:hover{border-color:var(--accent)} .btn.on{border-color:var(--accent);color:var(--accent2)}
+  .btn.primary{background:var(--accent);color:#1a0d03;border-color:var(--accent);font-weight:600}
+  .toolbar label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+  input[type=range]{accent-color:var(--accent);width:110px}
+  .canvaswrap{position:relative;min-height:0}
+  canvas#gl{position:absolute;inset:0;width:100%;height:100%;display:block;outline:none}
+  .hint{position:absolute;left:12px;bottom:10px;color:var(--muted);font-size:11.5px;pointer-events:none;
+    background:rgba(11,15,20,.7);padding:4px 8px;border-radius:6px}
+  aside{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:16px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+  .finding{font-size:22px;font-weight:650;margin:0 0 2px}
+  .pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;background:rgba(255,138,61,.14);color:var(--accent2)}
+  .pill.ok{background:rgba(62,207,142,.14);color:var(--ok)}
+  .bar{display:grid;grid-template-columns:96px 1fr 44px;gap:8px;align-items:center;margin:6px 0;font-size:12.5px}
+  .bar .track{height:8px;background:#0e141c;border-radius:99px;overflow:hidden}
+  .bar .fill{height:100%;background:var(--accent);border-radius:99px}
+  .bar .num{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  svg.spark{width:100%;height:84px;cursor:crosshair;display:block}
+  .muted{color:var(--muted)} .small{font-size:12px}
+  .step h2{font-size:18px;margin:2px 0 8px}
+  .step p{margin:0 0 10px;color:#cdd6e1}
+  .step ul{margin:6px 0 0;padding-left:18px;color:#cdd6e1} .step li{margin:4px 0}
+  .dots{display:flex;gap:6px;margin:4px 0 12px} .dots span{height:4px;flex:1;border-radius:9px;background:var(--line)}
+  .dots span.on{background:var(--accent)}
+  .nav{display:flex;gap:8px;justify-content:space-between}
+  footer{padding:8px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px}
+  .loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px}
+  @media (max-width: 700px){
+    main{grid-template-columns:1fr;grid-template-rows:60vh auto}
+    aside{border-left:0;border-top:1px solid var(--line)}
+  }
+</style>
+<style>
+  .legend{display:flex;flex-direction:column;gap:8px}
+  .lg{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;cursor:pointer;user-select:none}
+  .sw{width:14px;height:14px;border-radius:4px;border:1px solid rgba(255,255,255,.25)}
+  .lg.off{opacity:.4}
+  .lg .v{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+  .big{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px}
+  .kv span:nth-child(odd){color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>MRI Studio · Tumour 3D</h1><span class="src" id="src"></span>
+    <span class="spacer"></span>
+    <div class="seg" id="modeSeg"><button data-m="clinician">Clinician</button><button data-m="patient">Patient</button></div>
+  </header>
+  <main>
+    <section class="stage">
+      <div class="toolbar">
+        <div class="seg" id="viewSeg">
+          <button data-v="4">3D</button><button data-v="3">3-plane</button>
+          <button data-v="0">Axial</button><button data-v="1">Coronal</button><button data-v="2">Sagittal</button>
+        </div>
+        <button class="btn" id="hotBtn">◎ Centre on tumour</button>
+        <button class="btn" id="cutBtn">Cut away</button>
+        <button class="btn on" id="segBtn">Tumour</button>
+        <button class="btn" id="gtBtn" style="display:none">Expert outline</button>
+        <label>Opacity <input type="range" id="segOp" min="0" max="1" step="0.05" value="0.7"></label>
+      </div>
+      <div class="canvaswrap">
+        <canvas id="gl"></canvas>
+        <div class="loading" id="loading">Loading 3D volume…</div>
+        <div class="hint">Drag to rotate · scroll to zoom · click a slice to move the crosshair</div>
+      </div>
+    </section>
+    <aside id="panel"></aside>
+  </main>
+  <footer id="disc"></footer>
+</div>
+
+<script>/*__NIIVUE__*/</script>
+<script>
+const D = __PAYLOAD__;
+const $ = s => document.querySelector(s);
+$('#src').textContent = D.source;
+$('#disc').textContent = D.disclaimer;
+const REG = [
+  {k:1, name:'Edema (swelling)',      rgb:[255,214,10]},
+  {k:2, name:'Non-enhancing core',    rgb:[48,120,255]},
+  {k:3, name:'Enhancing tumour',      rgb:[255,59,48]},
+];
+const shown = {1:true, 2:true, 3:true};
+let segOn = true, gtOn = false, cutOn = false, segOpacity = 0.7;
+
+function b64ToUrl(b64){ const bin=atob(b64), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  return URL.createObjectURL(new Blob([u],{type:'application/gzip'})); }
+
+const nv = new niivue.Niivue({backColor:[0.043,0.059,0.078,1], show3Dcrosshair:true, crosshairColor:[1,1,1,0.7],
+  isColorbar:false, dragAndDropEnabled:false, multiplanarForceRender:true, clipPlaneColor:[0.043,0.059,0.078,0]});
+
+function labelMap(){
+  const R=[0],G=[0],B=[0],A=[0],L=['background'];
+  REG.forEach(r=>{R.push(r.rgb[0]);G.push(r.rgb[1]);B.push(r.rgb[2]);A.push(shown[r.k]?255:0);L.push(r.name);});
+  return {R,G,B,A,I:[0,1,2,3],labels:L};
+}
+function applySeg(){ const v=nv.volumes[1]; if(!v) return; v.setColormapLabel(labelMap()); nv.setOpacity(1, segOn?segOpacity:0); nv.updateGLVolume(); }
+function applyGt(){ if(nv.volumes.length<3) return; nv.volumes[2].setColormapLabel({R:[0,255],G:[0,255],B:[0,255],A:[0,255],I:[0,1],labels:['','expert']}); nv.setOpacity(2, gtOn?0.45:0); nv.updateGLVolume(); }
+function setView(v){ nv.setSliceType(v); document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.v===v)); }
+function setSeg(on){ segOn=on; $('#segBtn').classList.toggle('on',on); applySeg(); }
+function setCut(on){ cutOn=on; nv.setClipPlane(on?[0.02,270,0]:[2,0,0]); $('#cutBtn').classList.toggle('on',on); }
+function centre(){ nv.scene.crosshairPos = nv.vox2frac(D.centroid); nv.updateGLVolume(); nv.drawScene(); }
+function spin(a,e){ nv.setRenderAzimuthElevation(a,e); }
+const fmt = v => v < 10 ? v.toFixed(1) : v.toFixed(0);
+
+function clinicianPanel(){
+  const rows = REG.map(r=>`<div class="lg ${shown[r.k]?'':'off'}" data-k="${r.k}"><span class="sw" style="background:rgb(${r.rgb})"></span><span>${r.name}</span><span class="v">${fmt(D.volumes[r.k])} cm³</span></div>`).join('');
+  const dice = D.dice ? `<div class="card"><div class="eyebrow">Agreement with expert outline (Dice)</div>
+      <div class="kv"><span>Whole tumour</span><span>${D.dice.WT.toFixed(3)}</span><span>Tumour core</span><span>${D.dice.TC.toFixed(3)}</span>
+      <span>Enhancing</span><span>${D.dice.ET.toFixed(3)}</span></div>
+      <div class="muted small" style="margin-top:6px">1.0 = identical to the radiologist's outline. Toggle “Expert outline” to compare.</div></div>` : '';
+  return `
+  <div class="card"><div class="eyebrow">Whole tumour volume</div><div class="big">${fmt(D.volumes.WT)} cm³</div>
+    <div class="muted small">${D.volumes.WT>0 ? D.location : 'No tumour voxels were found.'}</div></div>
+  <div class="card"><div class="eyebrow">Regions · click to show or hide</div><div class="legend">${rows}</div></div>
+  ${dice}
+  <div class="card small"><div class="eyebrow">Method</div>3D U-Net on four MRI sequences (FLAIR, T1, T1 + contrast, T2), trained on BraTS cases from the Medical Segmentation Decathlon. Background image: T1 with contrast.</div>`;
+}
+function wireLegend(){ document.querySelectorAll('.lg').forEach(el=>el.onclick=()=>{ const k=+el.dataset.k; shown[k]=!shown[k]; applySeg(); render(); }); }
+
+const sizeWords = D.volumes.WT>0 ? `about ${fmt(D.volumes.WT)} cm³ in total. For scale, a golf ball is about 41 cm³.` : '';
+const steps = [
+  {t:'This is your brain scan', p:'An MRI takes hundreds of thin pictures of your head. Stacked together they make this 3D model. Drag it to turn it around.',
+   go(){ setView(4); setCut(false); setSeg(false); spin(110,15); }},
+  {t:'The tumour', p:'The coloured shape is the tumour as the computer outlined it. We have cut the brain open so you can see where it sits inside.',
+   go(){ setView(4); setSeg(true); setCut(true); spin(90,10); centre(); }},
+  {t:'Its different parts', p:'<b style="color:rgb(255,214,10)">Yellow</b> is swelling (edema): fluid around the tumour that can cause symptoms. <b style="color:rgb(255,59,48)">Red</b> is the active edge that lights up after contrast dye. <b style="color:rgb(48,120,255)">Blue</b> is tumour tissue that does not light up, often the centre.',
+   go(){ setView(3); setSeg(true); setCut(false); centre(); }},
+  {t:'Size and position', p:`The outlined area is ${sizeWords} ${D.location}`,
+   go(){ setView(4); setSeg(true); setCut(true); spin(200,20); centre(); }},
+  {t:'What usually happens next', p:'A team of specialists, often a neurosurgeon, an oncologist and a radiologist, reviews the full scan. They may recommend more imaging, a biopsy, surgery, radiation or medication.',
+   extra:'<div class="eyebrow" style="margin-top:6px">Questions you may want to ask</div><ul>'+D.questions.map(q=>`<li>${q}</li>`).join('')+'</ul>',
+   go(){ setView(4); setSeg(true); setCut(false); spin(110,15); }},
+];
+let si=0, mode=D.mode;
+function patientPanel(){ const s=steps[si]; return `
+  <div class="card step"><div class="eyebrow">Step ${si+1} of ${steps.length}</div>
+    <div class="dots">${steps.map((_,i)=>`<span class="${i<=si?'on':''}"></span>`).join('')}</div>
+    <h2>${s.t}</h2><p>${s.p}</p>${s.extra||''}</div>
+  <div class="nav"><button class="btn" id="prev" ${si===0?'disabled style="opacity:.4"':''}>← Back</button>
+    <button class="btn primary" id="next">${si===steps.length-1?'Start again':'Next →'}</button></div>
+  <div class="card small muted" style="margin-top:12px">A teaching aid prepared from an AI outline. Your doctor will explain what your scan actually shows.</div>`; }
+function render(){
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
+  $('#panel').innerHTML = mode==='clinician' ? clinicianPanel() : patientPanel();
+  if(mode==='clinician') wireLegend();
+  else { $('#next').onclick=()=>{ si=(si+1)%steps.length; render(); steps[si].go(); };
+         const pv=$('#prev'); if(pv) pv.onclick=()=>{ if(si>0){ si--; render(); steps[si].go(); } }; }
+}
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ mode=b.dataset.m; render();
+  if(mode==='patient'){ si=0; steps[0].go(); } else { setView(4); setCut(false); setSeg(true); centre(); } });
+document.querySelectorAll('#viewSeg button').forEach(b=>b.onclick=()=>setView(+b.dataset.v));
+$('#hotBtn').onclick=centre; $('#cutBtn').onclick=()=>setCut(!cutOn); $('#segBtn').onclick=()=>setSeg(!segOn);
+$('#gtBtn').onclick=()=>{ gtOn=!gtOn; $('#gtBtn').classList.toggle('on',gtOn); applyGt(); };
+$('#segOp').oninput=e=>{ segOpacity=+e.target.value; applySeg(); };
+
+(async()=>{
+  try{
+    await nv.attachToCanvas($('#gl'));
+    const vols=[{url:b64ToUrl(D.volume),name:'t1gd.nii.gz',colormap:'gray'},{url:b64ToUrl(D.seg),name:'seg.nii.gz',opacity:segOpacity}];
+    if(D.gt){ vols.push({url:b64ToUrl(D.gt),name:'expert.nii.gz',opacity:0}); $('#gtBtn').style.display=''; }
+    await nv.loadVolumes(vols);
+    applySeg(); applyGt();
+    $('#loading').remove(); render();
+    if(mode==='patient') steps[0].go(); else { setView(4); spin(110,15); centre(); }
+  }catch(err){ $('#loading').textContent='Could not load the volume: '+err; console.error(err); }
+})();
+</script>
+</body>
+</html>

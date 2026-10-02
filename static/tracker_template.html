@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MRI Studio Growth Tracker</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#18202b; --line:#243041; --text:#e6edf5; --muted:#8b98a9;
+    --accent:#ff8a3d; --accent2:#ffb07a; --ok:#3ecf8e; --warn:#ff6b5e; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+  .app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.2px}
+  header .src{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spacer{flex:1}
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg button{all:unset;cursor:pointer;padding:5px 12px;border-radius:999px;color:var(--muted);font-size:12.5px}
+  .seg button.on{background:var(--accent);color:#1a0d03;font-weight:600}
+  main{display:grid;grid-template-columns:1fr 320px;min-height:0}
+  .stage{display:grid;grid-template-rows:auto 1fr;min-height:0;min-width:0}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .btn{all:unset;cursor:pointer;padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+    font-size:12.5px;color:var(--text)}
+  .btn:hover{border-color:var(--accent)} .btn.on{border-color:var(--accent);color:var(--accent2)}
+  .btn.primary{background:var(--accent);color:#1a0d03;border-color:var(--accent);font-weight:600}
+  .toolbar label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+  input[type=range]{accent-color:var(--accent);width:110px}
+  .canvaswrap{position:relative;min-height:0}
+  canvas#gl{position:absolute;inset:0;width:100%;height:100%;display:block;outline:none}
+  .hint{position:absolute;left:12px;bottom:10px;color:var(--muted);font-size:11.5px;pointer-events:none;
+    background:rgba(11,15,20,.7);padding:4px 8px;border-radius:6px}
+  aside{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:16px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+  .finding{font-size:22px;font-weight:650;margin:0 0 2px}
+  .pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;background:rgba(255,138,61,.14);color:var(--accent2)}
+  .pill.ok{background:rgba(62,207,142,.14);color:var(--ok)}
+  .bar{display:grid;grid-template-columns:96px 1fr 44px;gap:8px;align-items:center;margin:6px 0;font-size:12.5px}
+  .bar .track{height:8px;background:#0e141c;border-radius:99px;overflow:hidden}
+  .bar .fill{height:100%;background:var(--accent);border-radius:99px}
+  .bar .num{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  svg.spark{width:100%;height:84px;cursor:crosshair;display:block}
+  .muted{color:var(--muted)} .small{font-size:12px}
+  .step h2{font-size:18px;margin:2px 0 8px}
+  .step p{margin:0 0 10px;color:#cdd6e1}
+  .step ul{margin:6px 0 0;padding-left:18px;color:#cdd6e1} .step li{margin:4px 0}
+  .dots{display:flex;gap:6px;margin:4px 0 12px} .dots span{height:4px;flex:1;border-radius:9px;background:var(--line)}
+  .dots span.on{background:var(--accent)}
+  .nav{display:flex;gap:8px;justify-content:space-between}
+  footer{padding:8px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px}
+  .loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px}
+  @media (max-width: 700px){
+    main{grid-template-columns:1fr;grid-template-rows:60vh auto}
+    aside{border-left:0;border-top:1px solid var(--line)}
+  }
+</style>
+<style>
+  .tp{display:flex;gap:6px;flex-wrap:wrap}
+  .tp button{all:unset;cursor:pointer;padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--muted);background:var(--panel)}
+  .tp button.on{border-color:var(--accent);color:var(--accent2)}
+  table.tl{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  table.tl th{color:var(--muted);font-weight:500;text-align:right;padding:4px 4px;border-bottom:1px solid var(--line)}
+  table.tl th:first-child, table.tl td:first-child{text-align:left}
+  table.tl td{text-align:right;padding:5px 4px;border-bottom:1px solid #1c2531;cursor:pointer}
+  table.tl tr.on td{background:rgba(255,138,61,.08)}
+  .badge{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px}
+  .b-grow{background:rgba(255,107,94,.16);color:#ff8a80}
+  .b-poss{background:rgba(255,176,122,.14);color:var(--accent2)}
+  .b-shr{background:rgba(62,207,142,.14);color:var(--ok)}
+  svg.chart{width:100%;height:190px;display:block}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px}
+  .kv span:nth-child(odd){color:var(--muted)}
+  .key{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:4px}
+  .key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>MRI Studio · Tumour growth tracker</h1><span class="src" id="src"></span>
+    <span class="spacer"></span>
+    <div class="seg" id="modeSeg"><button data-m="clinician">Clinician</button><button data-m="patient">Patient</button></div>
+  </header>
+  <main>
+    <section class="stage">
+      <div class="toolbar">
+        <div class="tp" id="tpBar"></div>
+        <div class="seg" id="viewSeg"><button data-v="4">3D</button><button data-v="3">3-plane</button><button data-v="0">Axial</button></div>
+        <button class="btn" id="hotBtn">◎ Centre</button>
+        <button class="btn" id="cutBtn">Cut away</button>
+        <button class="btn on" id="segBtn">Tumour</button>
+      </div>
+      <div class="canvaswrap">
+        <canvas id="gl"></canvas>
+        <div class="loading" id="loading">Loading scans…</div>
+        <div class="hint">Drag to rotate · scroll to zoom · pick a date above or on the chart</div>
+      </div>
+    </section>
+    <aside id="panel"></aside>
+  </main>
+  <footer id="disc"></footer>
+</div>
+<script>/*__NIIVUE__*/</script>
+<script>
+const D = __PAYLOAD__;
+const $ = s => document.querySelector(s);
+$('#src').textContent = 'Patient ' + D.patient + ' · ' + D.timepoints.length + ' scans · outlines from ' + D.source;
+$('#disc').textContent = D.disclaimer;
+const COL = {left:[255,138,61], right:[56,189,248]};
+const rgb = c => `rgb(${c.join(',')})`;
+const fmt = v => v==null ? '–' : (v < 1 ? v.toFixed(2) : v.toFixed(1));
+let cur = D.timepoints.length-1, segOn = true, cutOn = false, mode = D.mode;
+
+function b64ToUrl(b64){ const bin=atob(b64), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  return URL.createObjectURL(new Blob([u],{type:'application/gzip'})); }
+const nv = new niivue.Niivue({backColor:[0.043,0.059,0.078,1], show3Dcrosshair:true, crosshairColor:[1,1,1,0.6],
+  isColorbar:false, dragAndDropEnabled:false, multiplanarForceRender:true, clipPlaneColor:[0.043,0.059,0.078,0]});
+const LUT = {R:[0,255,56],G:[0,138,189],B:[0,61,248],A:[0,255,255],I:[0,1,2],labels:['','left','right']};
+
+async function loadTp(i){
+  cur = i; const t = D.timepoints[i];
+  await nv.loadVolumes([{url:b64ToUrl(t.image),name:'t1c.nii.gz',colormap:'gray'},{url:b64ToUrl(t.seg),name:'vs.nii.gz',opacity:0.85}]);
+  nv.volumes[1].setColormapLabel(LUT); nv.setOpacity(1, segOn?0.85:0); nv.updateGLVolume();
+  centre(); setCut(cutOn); render();
+}
+function setView(v){ nv.setSliceType(v); document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.v===v)); }
+function setSeg(on){ segOn=on; $('#segBtn').classList.toggle('on',on); if(nv.volumes[1]){ nv.setOpacity(1,on?0.85:0); nv.updateGLVolume(); } }
+function setCut(on){ cutOn=on; nv.setClipPlane(on?[0.0,180,20]:[2,0,0]); $('#cutBtn').classList.toggle('on',on); }
+function centre(){ const c=D.timepoints[cur].centroid; nv.scene.crosshairPos = nv.vox2frac(c); nv.updateGLVolume(); nv.drawScene(); }
+
+// ---- chart: volume per side over time (time-scaled x) ----
+function chart(){
+  const W=320,H=190,L=40,R=26,T=12,B=28, tps=D.timepoints;
+  const ts = tps.map(t=>Date.parse(t.date)), t0=Math.min(...ts), t1=Math.max(...ts)||t0+1;
+  const vmax = Math.max(0.1,...tps.map(t=>Math.max(t.volumes.left,t.volumes.right)))*1.15;
+  const X = d => L + (t1===t0?0.5:(d-t0)/(t1-t0))*(W-L-R), Y = v => H-B - v/vmax*(H-B-T);
+  let g = '';
+  for(let k=0;k<=4;k++){ const v=vmax*k/4, y=Y(v); g+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#1c2531"/><text x="${L-6}" y="${y+4}" text-anchor="end" font-size="10" fill="#8b98a9">${fmt(v)}</text>`; }
+  tps.forEach((t,i)=>{ g+=`<text x="${X(ts[i])}" y="${H-10}" text-anchor="middle" font-size="10" fill="${i===cur?'#ffb07a':'#8b98a9'}">${t.date.slice(0,7)}</text>`; });
+  for(const side of ['left','right']){
+    const pts = tps.map((t,i)=>[X(ts[i]),Y(t.volumes[side]),i,t]).filter(p=>p[3].volumes[side]>0 || tps.some(q=>q.volumes[side]>0));
+    if(!tps.some(q=>q.volumes[side]>0)) continue;
+    g += `<path d="${pts.map((p,k)=>(k?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="none" stroke="${rgb(COL[side])}" stroke-width="2"/>`;
+    pts.forEach(p=>{ const fl=p[3].flags[side]; const r = p[2]===cur?6:4;
+      g += `<circle data-i="${p[2]}" cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${fl==='growth'?'#ff6b5e':rgb(COL[side])}" stroke="#0b0f14" stroke-width="1.5" style="cursor:pointer"/>`; });
+  }
+  g += `<text x="${L}" y="${T-2}" font-size="10" fill="#8b98a9">cm³</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">${g}</svg>`;
+}
+function badge(f){ if(!f) return ''; const c = f==='growth'?'b-grow':f==='shrinkage'?'b-shr':'b-poss'; return `<span class="badge ${c}">${f}</span>`; }
+function changeCell(t,side){ const v=t[side+'_change_pct']; return v==null?'–':(v>0?'+':'')+v+'%'; }
+
+function clinicianPanel(){
+  const t = D.timepoints[cur];
+  const rows = D.timepoints.map((t,i)=>`<tr data-i="${i}" class="${i===cur?'on':''}"><td>${t.date}</td>
+      <td>${fmt(t.volumes.left)}</td><td>${changeCell(t,'left')}</td><td>${fmt(t.volumes.right)}</td><td>${changeCell(t,'right')}</td></tr>
+      ${(t.flags.left||t.flags.right)?`<tr data-i="${i}"><td colspan="5" style="text-align:left">${t.flags.left?'Left: '+badge(t.flags.left)+' ':''}${t.flags.right?'Right: '+badge(t.flags.right):''}</td></tr>`:''}`).join('');
+  const rel = D.eval ? `<div class="card small"><div class="eyebrow">How reliable is a change? (held-out test patients)</div>
+      Model vs expert: mean Dice ${D.eval.dice_mean.toFixed(3)} on ${D.eval.n_test_scans} scans.<div class="kv" style="margin-top:6px">
+      ${Object.entries(D.eval.by_size).map(([k,b])=>`<span>${k}</span><span>smallest reliable change ±${b.mdc95_pct}% (n=${b.n})</span>`).join('')}</div>
+      <div class="muted" style="margin-top:6px">Growth is flagged only when a change exceeds both 20% and the smallest reliable change for that tumour size.</div></div>`
+    : `<div class="card small muted">Run <b>evaluate</b> to add size-dependent reliability limits. Until then growth uses the 20% rule only.</div>`;
+  return `
+  <div class="card"><div class="eyebrow">Tumour volume over time</div>${chart()}
+    <div class="key"><span><i style="background:${rgb(COL.left)}"></i>Left</span><span><i style="background:${rgb(COL.right)}"></i>Right</span><span><i style="background:#ff6b5e"></i>Growth flagged</span></div></div>
+  <div class="card"><div class="eyebrow">Timeline (cm³, change vs previous scan)</div>
+    <table class="tl"><tr><th>Date</th><th>Left</th><th>Δ</th><th>Right</th><th>Δ</th></tr>${rows}</table></div>
+  ${rel}`;
+}
+function wire(){ document.querySelectorAll('[data-i]').forEach(el=>el.onclick=()=>loadTp(+el.dataset.i)); }
+
+function summary(){
+  const a=D.timepoints[0], b=D.timepoints[D.timepoints.length-1], parts=[];
+  const flagged = s => D.timepoints.some(t=>t.flags[s]==='growth');
+  const shrank  = s => D.timepoints.some(t=>t.flags[s]==='shrinkage');
+  for(const s of ['left','right']){ if(a.volumes[s]>0||b.volumes[s]>0){
+    const ch = a.volumes[s]>0 ? Math.round(100*(b.volumes[s]-a.volumes[s])/a.volumes[s]) : null;
+    const how = flagged(s) ? `grew from ${fmt(a.volumes[s])} cm³ to ${fmt(b.volumes[s])} cm³${ch==null?'':` (${ch>0?'+':''}${ch}%)`}`
+              : shrank(s) ? `became smaller, from ${fmt(a.volumes[s])} cm³ to ${fmt(b.volumes[s])} cm³`
+              : `stayed about the same size (around ${fmt(b.volumes[s])} cm³); the small differences are within normal measurement variation`;
+    parts.push(`On the <b>${s}</b> side the tumour ${how}.`); } }
+  const grew = ['left','right'].some(flagged);
+  return `Between ${a.date} and ${b.date}: ` + parts.join(' ') + (grew ? ' Because the tracker flagged growth, your care team will look at this closely.' : '');
+}
+const steps = [
+  {t:'Your scans over time', p:`These are your ${D.timepoints.length} MRI scans from ${D.timepoints[0].date} to ${D.timepoints[D.timepoints.length-1].date}. Tap a date to see that scan.`,
+   extra:()=>chart(), go(){ setView(4); setSeg(false); setCut(false); }},
+  {t:'Where the tumour is', p:'The coloured shape is a vestibular schwannoma: a slow-growing, non-cancerous tumour on the nerve for balance and hearing, next to the brainstem. In NF2-related schwannomatosis it often appears on both sides.',
+   go(){ setView(4); setSeg(true); setCut(true); centre(); }},
+  {t:'A closer look', p:'Three flat views through the tumour: from above, from the front and from the side.', go(){ setView(3); setSeg(true); setCut(false); centre(); }},
+  {t:'Has it changed?', p:summary(), extra:()=>chart(), go(){ setView(4); setSeg(true); setCut(true); centre(); }},
+  {t:'What usually happens next', p:'Small, stable tumours are often watched with regular scans. If a tumour grows or causes symptoms, options include surgery, focused radiation or medication, decided with your NF team.',
+   extra:()=>'<div class="eyebrow" style="margin-top:6px">Questions you may want to ask</div><ul>'+D.questions.map(q=>`<li>${q}</li>`).join('')+'</ul>',
+   go(){ setView(4); setSeg(true); setCut(false); }},
+];
+let si=0;
+function patientPanel(){ const s=steps[si]; return `
+  <div class="card step"><div class="eyebrow">Step ${si+1} of ${steps.length}</div>
+   <div class="dots">${steps.map((_,i)=>`<span class="${i<=si?'on':''}"></span>`).join('')}</div>
+   <h2>${s.t}</h2><p>${s.p}</p>${s.extra?s.extra():''}</div>
+  <div class="nav"><button class="btn" id="prev" ${si===0?'disabled style="opacity:.4"':''}>← Back</button>
+   <button class="btn primary" id="next">${si===steps.length-1?'Start again':'Next →'}</button></div>
+  <div class="card small muted" style="margin-top:12px">A teaching aid prepared from automated measurements. Your doctor will explain what your scans actually show.</div>`; }
+function render(){
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
+  $('#tpBar').innerHTML = D.timepoints.map((t,i)=>`<button data-i="${i}" class="${i===cur?'on':''}">${t.date}</button>`).join('');
+  $('#panel').innerHTML = mode==='clinician' ? clinicianPanel() : patientPanel();
+  wire();
+  if(mode==='patient'){ $('#next').onclick=()=>{ si=(si+1)%steps.length; render(); steps[si].go(); };
+    const pv=$('#prev'); if(pv) pv.onclick=()=>{ if(si>0){ si--; render(); steps[si].go(); } }; }
+}
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ mode=b.dataset.m; si=0; render(); if(mode==='patient') steps[0].go(); else { setView(4); setSeg(true); } });
+document.querySelectorAll('#viewSeg button').forEach(b=>b.onclick=()=>setView(+b.dataset.v));
+$('#hotBtn').onclick=centre; $('#cutBtn').onclick=()=>setCut(!cutOn); $('#segBtn').onclick=()=>setSeg(!segOn);
+(async()=>{ try{ await nv.attachToCanvas($('#gl')); await loadTp(cur); $('#loading').remove();
+  if(mode==='patient') steps[0].go(); else { setView(4); nv.setRenderAzimuthElevation(90,10); } }
+  catch(err){ $('#loading').textContent='Could not load the scans: '+err; console.error(err); } })();
+</script>
+</body>
+</html>
